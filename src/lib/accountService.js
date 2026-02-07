@@ -170,24 +170,30 @@ const withdrawFunds = async (userId, amountCents, pin, beneficiary) => {
         beneficiaryEmail: beneficiary.email,
         beneficiaryBank: beneficiary.bank,
         beneficiaryAccount: beneficiary.account,
-        beneficiaryRoutingNumber: beneficiary.routing,
-        beneficiaryIbanNumber: beneficiary.iban,
+        beneficiaryRoutingNumber: beneficiary.routing || null,
+        beneficiaryIbanNumber: beneficiary.iban || null,
+        beneficiarySwiftCode: beneficiary.swift || null,
       }
     ], { session });
 
     await session.commitTransaction();
 
-   await sendWithdrawalEmail(
-  User.email,
-  user.name,
-  amountCents,
-  user.balanceCents,
-  {
-    name: beneficiary.name,
-    bank: beneficiary.bank,
-    account: beneficiary.account
-  }
-);
+    // Send withdrawal email with proper beneficiary data
+    await sendWithdrawalEmail(
+      user.email, // Fixed: was User.email, should be user.email
+      user.name,
+      amountCents,
+      user.balanceCents,
+      {
+        name: beneficiary.name,
+        bank: beneficiary.bank,
+        account: beneficiary.account,
+        routing: beneficiary.routing || null,
+        swift: beneficiary.swift || null,
+        iban: beneficiary.iban || null
+      }
+    );
+    
     return { user, transaction: transaction[0] };
   } catch (error) {
     await session.abortTransaction();
@@ -269,20 +275,29 @@ const externalTransfer = async (userId, amountCents, pin, beneficiary) => {
         beneficiaryEmail: beneficiary.email,
         beneficiaryBank: beneficiary.bank,
         beneficiaryAccount: beneficiary.account,
-        beneficiaryIbanNumber:beneficiary.iban,
-        beneficiaryRoutingNumber:beneficiary.routing,
-        beneficiarySwiftCode: beneficiary.swift,
+        beneficiaryIbanNumber: beneficiary.iban || null,
+        beneficiaryRoutingNumber: beneficiary.routing || null,
+        beneficiarySwiftCode: beneficiary.swift || null,
         description: 'External transfer'
       }
     ], { session });
 
     await session.commitTransaction();
 
+    // Send beneficiary email with complete beneficiary data
     await sendBeneficiaryEmail(
-  beneficiary, 
-  user.name,
-  amountCents
-);
+      {
+        name: beneficiary.name,
+        email: beneficiary.email,
+        bank: beneficiary.bank,
+        account: beneficiary.account,
+        routing: beneficiary.routing || null,
+        swift: beneficiary.swift || null,
+        iban: beneficiary.iban || null
+      },
+      user.name,
+      amountCents
+    );
 
     return { user, transaction: transaction[0] };
   } catch (error) {

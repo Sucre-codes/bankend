@@ -3,6 +3,40 @@ const { env } = require('../config/env');
 
 const resend = new Resend(env.RESEND_API_KEY);
 
+// Utility function to mask account numbers - shows last 4 digits
+const maskAccountNumber = (accountNumber) => {
+  if (!accountNumber || accountNumber.length < 4) return accountNumber;
+  const lastFour = accountNumber.slice(-4);
+  const masked = '*'.repeat(Math.max(accountNumber.length - 4, 4));
+  return `${masked}${lastFour}`;
+};
+
+// Utility function to mask IBAN - shows first 4 and last 4 characters
+const maskIBAN = (iban) => {
+  if (!iban || iban.length < 8) return iban;
+  const first = iban.slice(0, 4);
+  const last = iban.slice(-4);
+  const masked = '*'.repeat(Math.max(iban.length - 8, 4));
+  return `${first}${masked}${last}`;
+};
+
+// Utility function to mask SWIFT - shows first 4 and last 3 characters
+const maskSWIFT = (swift) => {
+  if (!swift || swift.length < 7) return swift;
+  const first = swift.slice(0, 4);
+  const last = swift.slice(-3);
+  const masked = '*'.repeat(Math.max(swift.length - 7, 2));
+  return `${first}${masked}${last}`;
+};
+
+// Utility function to mask routing number - shows last 4 digits
+const maskRoutingNumber = (routing) => {
+  if (!routing || routing.length < 4) return routing;
+  const lastFour = routing.slice(-4);
+  const masked = '*'.repeat(Math.max(routing.length - 4, 5));
+  return `${masked}${lastFour}`;
+};
+
 const sendEmail = async ({ to, subject, htmlContent }) => {
   await resend.emails.send({
     from: `${env.RESEND_SENDER_NAME} <${env.RESEND_SENDER_EMAIL}>`,
@@ -15,6 +49,16 @@ const sendEmail = async ({ to, subject, htmlContent }) => {
 const sendWithdrawalEmail = async (to, userName, amountCents, balanceCents, beneficiary) => {
   const amount = (amountCents / 100).toFixed(2);
   const balance = (balanceCents / 100).toFixed(2);
+
+  // Determine currency based on what fields are present
+  const currency = beneficiary.routing ? 'USD' : 'EUR';
+  const currencySymbol = beneficiary.routing ? '$' : '€';
+
+  // Mask sensitive information
+  const maskedAccount = maskAccountNumber(beneficiary.account);
+  const maskedIban = beneficiary.iban ? maskIBAN(beneficiary.iban) : null;
+  const maskedSwift = beneficiary.swift ? maskSWIFT(beneficiary.swift) : null;
+  const maskedRouting = beneficiary.routing ? maskRoutingNumber(beneficiary.routing) : null;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -86,6 +130,7 @@ const sendWithdrawalEmail = async (to, userName, amountCents, balanceCents, bene
           .detail-value {
             color: #333;
             font-weight: 500;
+            font-family: 'Courier New', monospace;
           }
           .amount {
             font-size: 24px;
@@ -105,6 +150,15 @@ const sendWithdrawalEmail = async (to, userName, amountCents, balanceCents, bene
             color: #999;
             border-top: 1px solid #e5e5e5;
           }
+          .security-note {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #0369a1;
+          }
         </style>
       </head>
       <body>
@@ -123,7 +177,7 @@ const sendWithdrawalEmail = async (to, userName, amountCents, balanceCents, bene
             <div class="details-card">
               <div class="detail-row">
                 <span class="detail-label">Amount Withdrawn</span>
-                <span class="detail-value amount">$${amount}</span>
+                <span class="detail-value amount">${currencySymbol}${amount} ${currency}</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">New Balance</span>
@@ -143,11 +197,33 @@ const sendWithdrawalEmail = async (to, userName, amountCents, balanceCents, bene
               </div>
               <div class="detail-row">
                 <span class="detail-label">Account</span>
-                <span class="detail-value">${beneficiary.account}</span>
+                <span class="detail-value">${maskedAccount}</span>
               </div>
+              ${maskedRouting ? `
+              <div class="detail-row">
+                <span class="detail-label">Routing Number</span>
+                <span class="detail-value">${maskedRouting}</span>
+              </div>
+              ` : ''}
+              ${maskedSwift ? `
+              <div class="detail-row">
+                <span class="detail-label">SWIFT Code</span>
+                <span class="detail-value">${maskedSwift}</span>
+              </div>
+              ` : ''}
+              ${maskedIban ? `
+              <div class="detail-row">
+                <span class="detail-label">IBAN</span>
+                <span class="detail-value">${maskedIban}</span>
+              </div>
+              ` : ''}
             </div>
 
-            <p class="message">
+            <div class="security-note">
+              🔒 For security, account numbers have been partially masked. Full details are available in your transaction history.
+            </div>
+
+            <p class="message" style="margin-top: 30px;">
               If you did not authorize this transaction, please contact our support team immediately.
             </p>
           </div>
@@ -170,6 +246,16 @@ const sendWithdrawalEmail = async (to, userName, amountCents, balanceCents, bene
 
 const sendBeneficiaryEmail = async (beneficiary, senderName, amountCents) => {
   const amount = (amountCents / 100).toFixed(2);
+  
+  // Determine currency based on what fields are present
+  const currency = beneficiary.routing ? 'USD' : 'EUR';
+  const currencySymbol = beneficiary.routing ? '$' : '€';
+
+  // Mask sensitive information
+  const maskedAccount = maskAccountNumber(beneficiary.account);
+  const maskedIban = beneficiary.iban ? maskIBAN(beneficiary.iban) : null;
+  const maskedSwift = beneficiary.swift ? maskSWIFT(beneficiary.swift) : null;
+  const maskedRouting = beneficiary.routing ? maskRoutingNumber(beneficiary.routing) : null;
 
   const htmlContent = `
      <!DOCTYPE html>
@@ -241,6 +327,7 @@ const sendBeneficiaryEmail = async (beneficiary, senderName, amountCents) => {
           .detail-value {
             color: #333;
             font-weight: 500;
+            font-family: 'Courier New', monospace;
           }
           .amount {
             font-size: 32px;
@@ -263,6 +350,15 @@ const sendBeneficiaryEmail = async (beneficiary, senderName, amountCents) => {
             text-align: center;
             margin: 30px 0;
           }
+          .security-note {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #0369a1;
+          }
         </style>
       </head>
       <body>
@@ -280,51 +376,56 @@ const sendBeneficiaryEmail = async (beneficiary, senderName, amountCents) => {
             
             <div class="highlight-box">
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Amount Received</p>
-              <p class="amount" style="margin: 0;">$${amount}</p>
+              <p class="amount" style="margin: 0;">${currencySymbol}${amount} ${currency}</p>
             </div>
 
-            <h3 style="color: #333; margin-top: 30px;">Your Account Details</h3>
+            <h3 style="color: #333; margin-top: 30px;">Beneficiary Details</h3>
             <div class="details-card">
               <div class="detail-row">
-                <span class="detail-label">Account Holder</span>
+                <span class="detail-label">Account Holder: </span>
                 <span class="detail-value">${beneficiary.name}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Bank Name</span>
+                <span class="detail-label">Bank Name: </span>
                 <span class="detail-value">${beneficiary.bank}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Account Number</span>
-                <span class="detail-value">${beneficiary.account}</span>
+                <span class="detail-label">Account Number: </span>
+                <span class="detail-value">${maskedAccount}</span>
               </div>
-              ${beneficiary.routing ? `
+              ${maskedRouting ? `
               <div class="detail-row">
-                <span class="detail-label">Routing Number</span>
-                <span class="detail-value">${beneficiary.routing}</span>
+                <span class="detail-label">Routing Number: </span>
+                <span class="detail-value">${maskedRouting}</span>
               </div>
               ` : ''}
-              ${beneficiary.swift ? `
+              ${maskedSwift ? `
               <div class="detail-row">
-                <span class="detail-label">SWIFT Code</span>
-                <span class="detail-value">${beneficiary.swift}</span>
+                <span class="detail-label">SWIFT Code: </span>
+                <span class="detail-value">${maskedSwift}</span>
               </div>
               ` : ''}
-              ${beneficiary.iban ? `
+              ${maskedIban ? `
               <div class="detail-row">
-                <span class="detail-label">IBAN</span>
-                <span class="detail-value">${beneficiary.iban}</span>
+                <span class="detail-label">IBAN: </span>
+    
+                <span class="detail-value">${maskedIban}</span>
               </div>
               ` : ''}
+            </div>
+
+            <div class="security-note">
+              🔒 For security, account numbers have been partially masked in this notification.
             </div>
 
             <h3 style="color: #333; margin-top: 30px;">Transfer Information</h3>
             <div class="details-card">
               <div class="detail-row">
-                <span class="detail-label">Sender</span>
+                <span class="detail-label">Sender: </span>
                 <span class="detail-value">${senderName}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Transfer Date</span>
+                <span class="detail-label">Transfer Date: </span>
                 <span class="detail-value">${new Date().toLocaleDateString('en-US', { 
                   year: 'numeric', 
                   month: 'long', 
@@ -332,7 +433,7 @@ const sendBeneficiaryEmail = async (beneficiary, senderName, amountCents) => {
                 })}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Status</span>
+                <span class="detail-label">Status: </span>
                 <span class="detail-value" style="color: #059669; font-weight: 600;">Processing</span>
               </div>
             </div>

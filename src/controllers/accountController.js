@@ -81,15 +81,17 @@ const withdraw = async (req, res) => {
       beneficiarySwiftCode,
       beneficiaryIbanNumber
     } = req.body;
+    
     const result = await withdrawFunds(userId, amountCents, pin, {
       name: beneficiaryName,
       email: beneficiaryEmail,
       bank: beneficiaryBank,
       account: beneficiaryAccount,
-      routing: beneficiaryRoutingNumber,
-      iban: beneficiaryIbanNumber,
-      swift: beneficiarySwiftCode
+      routing: beneficiaryRoutingNumber || null,
+      iban: beneficiaryIbanNumber || null,
+      swift: beneficiarySwiftCode || null
     });
+    
     res.status(200).json({
       balanceCents: result.user.balanceCents,
       transaction: result.transaction
@@ -116,16 +118,28 @@ const transfer = async (req, res) => {
 const externalTransferHandler = async (req, res) => {
   try {
     const userId = req.userId;
-    const { amountCents, pin, beneficiaryName, beneficiaryEmail, beneficiaryBank, beneficiaryAccount } = req.body;
+    const { 
+      amountCents, 
+      pin, 
+      beneficiaryName, 
+      beneficiaryEmail, 
+      beneficiaryBank, 
+      beneficiaryAccount,
+      beneficiaryRoutingNumber,
+      beneficiarySwiftCode,
+      beneficiaryIbanNumber
+    } = req.body;
+    
     const result = await externalTransfer(userId, amountCents, pin, {
       name: beneficiaryName,
       email: beneficiaryEmail,
       bank: beneficiaryBank,
       account: beneficiaryAccount,
-      routing: '',
-      iban: '',
-      swift: ''
+      routing: beneficiaryRoutingNumber || null,
+      iban: beneficiaryIbanNumber || null,
+      swift: beneficiarySwiftCode || null
     });
+    
     res.status(200).json({
       balanceCents: result.user.balanceCents,
       transaction: result.transaction
